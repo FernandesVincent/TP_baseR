@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
         return EXIT_FAILURE;
     }
-
+///////////////////////////////////////////////////////////////////////////////////////////////////////
     //QA.a
 
     char buffer[BUFFER_SIZE] = {0};
@@ -53,7 +53,8 @@ int main(int argc, char **argv) {
         printf("Error of character number \n");
         return EXIT_FAILURE;
     }
-    printf("Message sent\n");
+
+    printf("RRQ sent : %s \n", filename);
 
 
     //Q4.b
@@ -62,29 +63,18 @@ int main(int argc, char **argv) {
     int block_number = 1;
     socklen_t size_adress = sizeof(adresse);
 
-    //int bytes_received = recvfrom(socket_descriptor, buffer, msg_length, NULL, &adresse, &size_adress);
-
-    //if (bytes_received == -1) {
-    //    printf("Error of receiving data \n");
-    //}
-
     char buffer_received[BUFFER_SIZE] = {0};
-    //buffer_received[1] = 3;
-    //sprintf(buffer_received + 2, "%s", block_number);
-    //sprintf(buffer_received + 3 + strlen(block_number), strlen(bytes_received));
-
     char buffer_ack[BUFFER_SIZE] = {0};
-    //buffer_ack[1] = 4;
-    //sprintf(buffer_ack + 2 , "%s", block_number);
-
     //Q4.c
 
     int bytes_received;
 
-    do {
-        bytes_received = recvfrom(socket_descriptor, buffer, msg_length, NULL, &adresse, &size_adress);
+    while (bytes_received == 516) {
+
+        bytes_received = recvfrom(socket_descriptor, buffer, msg_length, 0 , &adresse, &size_adress);
+
         if (bytes_received == -1) {
-            printf("Error of receiving data \n");
+           printf("Error of receiving data \n");
         }
 
         if (buffer_received[0] == 0 && buffer_received[1] == 3) {
@@ -92,9 +82,58 @@ int main(int argc, char **argv) {
             buffer_ack[1] = 4;
             buffer_ack[3] = block_number;
             block_number++;
+
         }
 
-    }while (bytes_received == 512);
+    }
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    char bufferWRQ[BUFFER_SIZE] = {0};
+    bufferWRQ[1] = 2;
+    sprintf(bufferWRQ + 2, "%s", filename);
+    sprintf(bufferWRQ + 3 + strlen(filename), "NETASCII");
+
+    int msg_lengthWRQ = 12 + strlen(filename);
+    int socket_descriptorWRQ = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+
+    int number_of_characters_sent = sendto(socket_descriptorWRQ, bufferWRQ, msg_lengthWRQ, 0, res->ai_addr, res->ai_addrlen);
+    if (number_of_characters_sent == -1) {
+        perror("Error sending WRQ");
+        return EXIT_FAILURE;
+    }
+
+    printf("WRQ sent: %s \n", filename);
+
+    struct sockaddr adresseWRQ;
+    socklen_t size_adresseWRQ = sizeof(adresseWRQ);
+    char buffer_receivedWRQ[BUFFER_SIZE] = {0};
+    int block_numberWRQ = 1;
 
 
+    char data_packet[BUFFER_SIZE] = {0};
+    size_t bytes_read;
+
+    while (bytes_read == 512) {
+        int bytes_sent = sendto(socket_descriptorWRQ, data_packet, bytes_read + 4, 0, &adresseWRQ, size_adresseWRQ);
+        if (bytes_sent == -1) {
+            printf("Error sending data packet\n");
+            return EXIT_FAILURE;
+        }
+
+        int ack_received = recvfrom(socket_descriptorWRQ, buffer_receivedWRQ, BUFFER_SIZE, 0, &adresseWRQ, &size_adresseWRQ);
+        if (ack_received == -1) {
+            printf("Error receiving ACK\n");
+            return EXIT_FAILURE;
+        }
+
+        if (buffer_receivedWRQ[0] == 0 && buffer_receivedWRQ[1] == 4) {
+            int block_number_received = (buffer_receivedWRQ[3] << 8) + buffer_receivedWRQ[4];
+            if (block_number_received == block_numberWRQ) {
+                block_numberWRQ++;
+            }
+        }
+    }
+
+
+ return 0;
 }
